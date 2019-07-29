@@ -1,6 +1,16 @@
 import async from "async";
 import { promisify } from "bluebird";
-import { BOOLEAN, DATE, INTEGER, literal, Model, Op, Options as SequelizeOptions, Sequelize, TEXT } from "sequelize";
+import {
+  BOOLEAN,
+  DATE,
+  INTEGER,
+  literal,
+  Model,
+  Op,
+  Options as SequelizeOptions,
+  Sequelize,
+  TEXT
+} from "sequelize";
 
 import StorageErrorFactory from "../errors/StorageErrorFactory";
 import * as Models from "../generated/artifacts/models";
@@ -9,7 +19,7 @@ import IBlobMetadataStore, {
   BlockModel,
   ContainerModel,
   PersistencyBlockModel,
-  ServicePropertiesModel,
+  ServicePropertiesModel
 } from "./IBlobMetadataStore";
 
 // tslint:disable: max-classes-per-file
@@ -846,6 +856,7 @@ export default class SqlBlobMetadataStore implements IBlobMetadataStore {
     // 6. GC uncommitted blocks
 
     await this.sequelize.transaction(async t => {
+      console.log("commit");
       const pCommittedBlocksMap: Map<string, PersistencyBlockModel> = new Map(); // persistencyCommittedBlocksMap
       const pUncommittedBlocksMap: Map<
         string,
@@ -1045,7 +1056,39 @@ export default class SqlBlobMetadataStore implements IBlobMetadataStore {
     blob: string,
     snapshot?: string | undefined
   ): Promise<BlobModel | undefined> {
-    throw new Error("Method not implemented.");
+    return BlobsModel.findOne({
+      where: {
+        accountName: account,
+        containerName: container,
+        blobName: blob
+      }
+    }).then(res => {
+      if (res === null || res === undefined) {
+        return undefined;
+      }
+
+      const accountName = this.getModelValue<string>(res, "accountName");
+      const containerName = this.getModelValue<string>(res, "containerName");
+      const blobName = this.getModelValue<string>(res, "blobName");
+      const lastModified = this.getModelValue<Date>(res, "lastModified");
+      const etag = this.getModelValue<string>(res, "etag");
+      const isCommittedValue = this.getModelValue<number>(res, "isCommitted");
+
+      const ret: BlobModel = {
+        accountName: accountName!,
+        containerName: containerName!,
+        name: blobName!,
+        snapshot: "",
+        properties: {
+          lastModified: lastModified!,
+          etag: etag!
+        },
+        isCommitted: isCommittedValue! ? true : false
+      };
+
+      return ret;
+    });
+    // throw new Error("Method not implemented.");
   }
 
   public undeleteBlob(

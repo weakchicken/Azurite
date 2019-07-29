@@ -10,11 +10,13 @@ import IExtentMetadataStore from "../common/persistence/IExtentMetadataStore";
 import IExtentStore from "../common/persistence/IExtentStore";
 import SqlExtentMetadataStore from "../common/persistence/SqlExtentMetadataStore";
 import ServerBase from "../common/ServerBase";
-import BlobRequestListenerFactory from "./BlobRequestListenerFactory";
 import BlobGCManager from "./gc/BlobGCManager";
 import IBlobDataStore from "./persistence/IBlobDataStore";
+import IBlobMetadataStore from "./persistence/IBlobMetadataStore";
 import LokiBlobDataStore from "./persistence/LokiBlobDataStore";
+import SqlBlobMetadataStore from "./persistence/SqlBlobMetadataStore";
 import SqlBlobConfiguration from "./SqlBlobConfiguration";
+import SqlBlobRequestListenerFactory from "./SqlBlobRequestListenerFactory";
 
 const BEFORE_CLOSE_MESSAGE = `Azurite Blob service is closing...`;
 const BEFORE_CLOSE_MESSAGE_GC_ERROR = `Azurite Blob service is closing... Critical error happens during GC.`;
@@ -33,8 +35,9 @@ const AFTER_CLOSE_MESSAGE = `Azurite Blob service successfully closed`;
  * @export
  * @class Server
  */
-export default class BlobServer extends ServerBase {
+export default class SqlBlobServer extends ServerBase {
   private readonly dataStore: IBlobDataStore;
+  private readonly metadataStore: IBlobMetadataStore;
   private readonly extentMetadataStore: IExtentMetadataStore;
   private readonly extentStore: IExtentStore;
   private readonly accountDataStore: IAccountDataStore;
@@ -66,6 +69,11 @@ export default class BlobServer extends ServerBase {
       // logger
     );
 
+    const metadataStore: IBlobMetadataStore = new SqlBlobMetadataStore(
+      configuration.sqlURL,
+      configuration.sequelizeOptions
+    );
+
     const extentMetadataStore: IExtentMetadataStore = new SqlExtentMetadataStore(
       configuration.sqlURL,
       configuration.sequelizeOptions
@@ -81,8 +89,9 @@ export default class BlobServer extends ServerBase {
     // We can also change the HTTP framework here by
     // creating a new XXXListenerFactory implementing IRequestListenerFactory interface
     // and replace the default Express based request listener
-    const requestListenerFactory: IRequestListenerFactory = new BlobRequestListenerFactory(
+    const requestListenerFactory: IRequestListenerFactory = new SqlBlobRequestListenerFactory(
       dataStore,
+      metadataStore,
       extentStore,
       accountDataStore,
       configuration.enableAccessLog, // Access log includes every handled HTTP request
@@ -109,6 +118,7 @@ export default class BlobServer extends ServerBase {
     );
 
     this.dataStore = dataStore;
+    this.metadataStore = metadataStore;
     this.extentMetadataStore = extentMetadataStore;
     this.extentStore = extentStore;
     this.accountDataStore = accountDataStore;
@@ -125,6 +135,10 @@ export default class BlobServer extends ServerBase {
 
     if (this.dataStore !== undefined) {
       await this.dataStore.init();
+    }
+
+    if (this.metadataStore !== undefined) {
+      await this.metadataStore.init();
     }
 
     if (this.extentMetadataStore !== undefined) {
@@ -160,6 +174,10 @@ export default class BlobServer extends ServerBase {
 
     if (this.extentMetadataStore !== undefined) {
       await this.extentMetadataStore.close();
+    }
+
+    if (this.metadataStore !== undefined) {
+      await this.metadataStore.close();
     }
 
     if (this.dataStore !== undefined) {
