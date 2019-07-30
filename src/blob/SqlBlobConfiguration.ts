@@ -20,7 +20,7 @@ const DEFUALT_BLOB_PERSISTENCE_ARRAY: StoreDestinationArray = [
 ];
 
 const DEFUALT_SQL_URI =
-  "mariadb://root:my-secret-pw@127.0.0.1:3306/azurite_extent_metadata";
+  "mariadb://dmroot@azurite-mariadb:!!123abc!!123abc@azurite-mariadb.mariadb.database.azure.com:3306/azurite_extent_metadata";
 const DEFUALT_SQL_OPTIONS = {
   logging: false,
   pool: {

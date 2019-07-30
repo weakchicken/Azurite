@@ -1,4 +1,11 @@
-import { createReadStream, createWriteStream, mkdir, open, stat, unlink } from "fs";
+import {
+  createReadStream,
+  createWriteStream,
+  mkdir,
+  open,
+  stat,
+  unlink
+} from "fs";
 import { join } from "path";
 import { Writable } from "stream";
 import { promisify } from "util";
@@ -8,7 +15,10 @@ import BufferStream from "../utils/BufferStream";
 import ZeroBytesStream from "../ZeroBytesStream";
 import FDCache from "./FDCache";
 import IExtentMetadataStore, { IExtentModel } from "./IExtentMetadataStore";
-import IExtentStore, { IExtentChunk, StoreDestinationArray } from "./IExtentStore";
+import IExtentStore, {
+  IExtentChunk,
+  StoreDestinationArray
+} from "./IExtentStore";
 import IFDCache from "./IFDCache";
 import IOperationQueue from "./IOperationQueue";
 import OperationQueue from "./OperationQueue";
@@ -21,7 +31,7 @@ const unlinkAsync = promisify(unlink);
 const openAsync = promisify(open);
 
 // The max size of an extent.
-const MAX_EXTENT_SIZE = 8 * 1024 * 1024;
+const MAX_EXTENT_SIZE = 256 * 1024 * 1024;
 const DEFAULT_READ_CONCURRENCY = 100;
 
 enum AppendStatusCode {
@@ -145,14 +155,16 @@ export default class FSExtentStore implements IExtentStore {
         (async (): Promise<IExtentChunk> => {
           let appendExtentIdx = 0;
 
+          const idleList = [];
           for (let i = 0; i < this.appendExtentNumber; i++) {
             if (
               this.appendExtentArray[i].appendStatus === AppendStatusCode.Idle
             ) {
-              appendExtentIdx = i;
-              break;
+              idleList.push(i);
             }
           }
+          appendExtentIdx =
+            idleList[Math.round(Math.random() * (idleList.length - 1))];
           this.appendExtentArray[appendExtentIdx].appendStatus =
             AppendStatusCode.Appending;
 

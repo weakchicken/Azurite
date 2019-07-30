@@ -8,10 +8,7 @@ import * as Logger from "../common/Logger";
 import { StoreDestinationArray } from "../common/persistence/IExtentStore";
 import SqlBlobConfiguration from "./SqlBlobConfiguration";
 import SqlBlobServer from "./SqlBlobServer";
-import {
-  DEFAULT_BLOB_DB_PATH,
-  DEFAULT_BLOB_PERSISTENCE_PATH
-} from "./utils/constants";
+import { DEFAULT_BLOB_DB_PATH } from "./utils/constants";
 
 // tslint:disable:no-console
 
@@ -32,18 +29,48 @@ async function main() {
   // Initialize server configuration
   const DEFUALT_BLOB_PERSISTENCE_ARRAY: StoreDestinationArray = [
     {
-      persistenceId: "Default",
-      persistencePath: DEFAULT_BLOB_PERSISTENCE_PATH,
-      maxConcurrency: 10
+      persistenceId: "diskD",
+      persistencePath: "D:/ltTest",
+      maxConcurrency: 2
+    },
+    {
+      persistenceId: "diskF",
+      persistencePath: "F:/ltTest",
+      maxConcurrency: 2
+    },
+    {
+      persistenceId: "diskJ",
+      persistencePath: "J:/ltTest",
+      maxConcurrency: 2
+    },
+    {
+      persistenceId: "diskH",
+      persistencePath: "H:/ltTest",
+      maxConcurrency: 2
+    },
+    {
+      persistenceId: "diskI",
+      persistencePath: "I:/ltTest",
+      maxConcurrency: 2
+    },
+    {
+      persistenceId: "diskJ",
+      persistencePath: "J:/ltTest",
+      maxConcurrency: 2
+    },
+    {
+      persistenceId: "diskK",
+      persistencePath: "K:/ltTest",
+      maxConcurrency: 2
     }
   ];
 
   const DEFUALT_SQL_URI =
-    "mariadb://root:my-secret-pw@127.0.0.1:3306/azurite_extent_metadata";
+    "mariadb://dmroot@azurite-mariadb:!!123abc!!123abc@azurite-mariadb.mariadb.database.azure.com:3306/azurite_extent_metadata";
   const DEFUALT_SQL_OPTIONS = {
     logging: false,
     pool: {
-      max: 100,
+      max: 10,
       min: 0,
       acquire: 30000,
       idle: 10000
