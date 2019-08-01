@@ -3,17 +3,31 @@ import { join } from "path";
 import { PassThrough } from "stream";
 
 import {
-    Aborter, BlobURL, BlockBlobURL, ContainerURL, downloadBlobToBuffer, ServiceURL,
-    SharedKeyCredential, StorageURL, uploadFileToBlockBlob, uploadStreamToBlockBlob
+  Aborter,
+  BlobURL,
+  BlockBlobURL,
+  ContainerURL,
+  downloadBlobToBuffer,
+  ServiceURL,
+  SharedKeyCredential,
+  StorageURL,
+  uploadFileToBlockBlob,
+  uploadStreamToBlockBlob
 } from "@azure/storage-blob";
 
 import { configLogger } from "../../src/common/Logger";
 import {
-    createRandomLocalFile, EMULATOR_ACCOUNT_KEY, EMULATOR_ACCOUNT_NAME, getUniqueName,
-    readStreamToLocalFile, rmRecursive, TestServerFactory
+  createRandomLocalFile,
+  EMULATOR_ACCOUNT_KEY,
+  EMULATOR_ACCOUNT_NAME,
+  getUniqueName,
+  readStreamToLocalFile,
+  rmRecursive,
+  TestServerFactory
 } from "../testutils";
 
 import assert = require("assert");
+import RandomReadStream from "../RandomReadStream";
 // Disable debugging log by passing false
 configLogger(false);
 
@@ -529,5 +543,25 @@ describe("BlockBlobHighlevel", () => {
 
     assert.ok(expectedError);
     rmRecursive(downloadedFile);
+  });
+
+  it.only("Upload a large file of a random readstream by stageblock.", async () => {
+    const rs = new RandomReadStream(10 * 1024 * 1024 * 1024);
+    let eventTriggered = false;
+
+    await uploadStreamToBlockBlob(
+      Aborter.none,
+      rs,
+      blockBlobURL,
+      4 * 1024 * 1024,
+      20,
+      {
+        progress: ev => {
+          assert.ok(ev.loadedBytes);
+          eventTriggered = true;
+        }
+      }
+    );
+    assert.ok(eventTriggered);
   });
 });

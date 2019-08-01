@@ -1,4 +1,9 @@
-import { createLogger, format, Logger as IWinstonLogger, transports } from "winston";
+import {
+  createLogger,
+  format,
+  Logger as IWinstonLogger,
+  transports
+} from "winston";
 
 import ILoggerStrategy, { LogLevels } from "./ILoggerStrategy";
 
@@ -24,10 +29,11 @@ export default class WinstonLoggerStrategy implements ILoggerStrategy {
   public constructor(level: LogLevels = LogLevels.Debug, logfile?: string) {
     this.winstonLogger = createLogger({
       format: format.combine(
-        format.timestamp(),
         format.printf(
           info =>
-            `${info.timestamp} ${info.contextID} ${info.level}: ${info.message}`
+            `${process.pid} ${info.timestamp} ${info.contextID} ${
+              info.level
+            }: ${info.message}`
         )
       ),
       level
@@ -47,6 +53,11 @@ export default class WinstonLoggerStrategy implements ILoggerStrategy {
     message: string,
     contextID: string = "\t"
   ): void {
-    this.winstonLogger.log({ level, message, contextID });
+    this.winstonLogger.log({
+      level,
+      message,
+      contextID,
+      timestamp: new Date().toISOString()
+    });
   }
 }

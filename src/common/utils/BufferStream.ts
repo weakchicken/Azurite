@@ -10,7 +10,7 @@ export default class BufferStream extends Readable {
     super(options);
     this.buffer = buffer;
     this.offset = 0;
-    this.chunkSize = 64 * 1024;
+    this.chunkSize = 4 * 1024 * 1024;
     this.bufferSize = buffer.length;
   }
 

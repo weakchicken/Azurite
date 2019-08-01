@@ -149,8 +149,26 @@ export default class SqlBlockBlobHandler extends SqlBaseHandler
     const blobName = blobCtx.blob!;
     const date = blobCtx.startTime!;
 
+    // TODO: Create a alghorithm to buffer incoming request body before inserting into operation queue
+    // blockBuffer is for testing only. It will have memory leak issue. Should use buffer pool.
+    // this.logger.debug(`SqlBlockBlobHandler:Stageblock() Reading request body into buffer`, context.contextID!);
+    // const blockBuffer = Buffer.allocUnsafe(contentLength);
+    // await streamToBuffer(body, blockBuffer, 0, contentLength);
+    // this.logger.debug(`SqlBlockBlobHandler:Stageblock() Complete reading request body into buffer`, context.contextID!);
+
     // console.log(`stageBlock ${blockId} starts`);
-    const persistency = await this.extentStore.appendExtent(body); // this.dataStore.writePayload(body);
+    this.logger.debug(
+      `SqlBlockBlobHandler:Stageblock() Start appendExtent`,
+      context.contextID!
+    );
+    const persistency = await this.extentStore.appendExtent(
+      body,
+      context.contextID
+    ); // this.dataStore.writePayload(body);
+    this.logger.debug(
+      `SqlBlockBlobHandler:Stageblock() Complete appendExtent`,
+      context.contextID!
+    );
     if (persistency.count !== contentLength) {
       // TODO: Confirm error code
       throw StorageErrorFactory.getInvalidOperation(
@@ -172,7 +190,15 @@ export default class SqlBlockBlobHandler extends SqlBaseHandler
       persistency
     };
 
+    this.logger.debug(
+      `SqlBlockBlobHandler:Stageblock() Start sqlDataStore.stageBlock`,
+      context.contextID!
+    );
     await this.sqlDataStore.stageBlock(block);
+    this.logger.debug(
+      `SqlBlockBlobHandler:Stageblock() Complete sqlDataStore.stageBlock`,
+      context.contextID!
+    );
 
     const response: Models.BlockBlobStageBlockResponse = {
       statusCode: 201,

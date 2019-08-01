@@ -13,5 +13,5 @@ export default interface IOperationQueue {
    * @returns {Promise<T>}
    * @memberof IOperationQueue
    */
-  operate<T>(op: () => Promise<T>): Promise<T>;
+  operate<T>(op: () => Promise<T>, contextId?: string): Promise<T>;
 }

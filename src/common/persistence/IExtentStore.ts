@@ -38,7 +38,10 @@ export default interface IExtentStore extends IDataStore {
    * @returns {Promise<IExtentChunk>}
    * @memberof IExtentStore
    */
-  appendExtent(data: NodeJS.ReadableStream | Buffer): Promise<IExtentChunk>;
+  appendExtent(
+    data: NodeJS.ReadableStream | Buffer,
+    contextId?: string
+  ): Promise<IExtentChunk>;
 
   /**
    * Read data from persistency layer accoding to the given IExtentChunk.

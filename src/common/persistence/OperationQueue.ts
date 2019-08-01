@@ -3,6 +3,7 @@ import { EventEmitter } from "events";
 import IOperationQueue from "./IOperationQueue";
 
 import uuid = require("uuid");
+import logger from "../Logger";
 
 interface IOperation {
   id: string;
@@ -27,11 +28,19 @@ export default class OperationQueue implements IOperationQueue {
    * @returns {Promise<T>}
    * @memberof OperationQueue
    */
-  public async operate<T>(op: () => Promise<T>): Promise<T> {
+  public async operate<T>(
+    op: () => Promise<T>,
+    contextId?: string
+  ): Promise<T> {
     const id = uuid();
+    logger.debug(
+      `OperationQueue:operate() Push a new operation:${id} to queue, pending:${
+        this.operations.length
+      }, executing:${this.runningConcurrency}.`,
+      contextId
+    );
     this.operations.push({ id, op });
     // console.log(`OperationQueue.operate(${id})`);
-
     this.execute();
     return new Promise<T>((resolve, reject) => {
       this.emitter

@@ -28,40 +28,35 @@ async function main() {
 
   // Initialize server configuration
   const DEFUALT_BLOB_PERSISTENCE_ARRAY: StoreDestinationArray = [
-    {
-      persistenceId: "diskD",
-      persistencePath: "D:/ltTest",
-      maxConcurrency: 2
-    },
+    // {
+    //   persistenceId: "diskD",
+    //   persistencePath: "D:/ltTest",
+    //   maxConcurrency: 300
+    // },
     {
       persistenceId: "diskF",
       persistencePath: "F:/ltTest",
-      maxConcurrency: 2
+      maxConcurrency: 0
     },
     {
       persistenceId: "diskJ",
       persistencePath: "J:/ltTest",
-      maxConcurrency: 2
+      maxConcurrency: 5
     },
     {
       persistenceId: "diskH",
       persistencePath: "H:/ltTest",
-      maxConcurrency: 2
+      maxConcurrency: 5
     },
     {
       persistenceId: "diskI",
       persistencePath: "I:/ltTest",
-      maxConcurrency: 2
-    },
-    {
-      persistenceId: "diskJ",
-      persistencePath: "J:/ltTest",
-      maxConcurrency: 2
+      maxConcurrency: 5
     },
     {
       persistenceId: "diskK",
       persistencePath: "K:/ltTest",
-      maxConcurrency: 2
+      maxConcurrency: 5
     }
   ];
 
@@ -89,8 +84,8 @@ async function main() {
     DEFUALT_BLOB_PERSISTENCE_ARRAY,
     !env.silent(),
     undefined,
-    env.debug() !== undefined,
-    env.debug()
+    false, // env.debug() !== undefined,
+    "debug.log" //env.debug()
   );
 
   // We use logger singleton as global debugger logger to track detailed outputs cross layers

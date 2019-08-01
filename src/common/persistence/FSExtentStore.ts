@@ -9,12 +9,13 @@ import {
 import { join } from "path";
 import { Writable } from "stream";
 import { promisify } from "util";
+import logger from "../Logger";
 
 import { ZERO_PERSISTENCY_CHUNK_ID } from "../../blob/persistence/IBlobDataStore";
 import BufferStream from "../utils/BufferStream";
 import ZeroBytesStream from "../ZeroBytesStream";
 import FDCache from "./FDCache";
-import IExtentMetadataStore, { IExtentModel } from "./IExtentMetadataStore";
+import IExtentMetadataStore from "./IExtentMetadataStore";
 import IExtentStore, {
   IExtentChunk,
   StoreDestinationArray
@@ -69,6 +70,11 @@ export default class FSExtentStore implements IExtentStore {
 
   private persistencyPath: Map<string, string>;
 
+  private appendCount: number;
+  private totalAppendTimeInMS: number;
+  private dequeueCount: number;
+  private totalPendingTimeInMS: number;
+
   public constructor(
     metadata: IExtentMetadataStore,
     public readonly persistencyConfiguration: StoreDestinationArray
@@ -76,6 +82,11 @@ export default class FSExtentStore implements IExtentStore {
     this.appendExtentArray = [];
     this.persistencyPath = new Map<string, string>();
     this.fdCache = new FDCache(100);
+
+    this.appendCount = 0;
+    this.totalAppendTimeInMS = 0;
+    this.totalPendingTimeInMS = 0;
+    this.dequeueCount = 0;
 
     for (const storeDestination of persistencyConfiguration) {
       this.persistencyPath.set(
@@ -148,11 +159,21 @@ export default class FSExtentStore implements IExtentStore {
    * @memberof IExtentStore
    */
   public async appendExtent(
-    data: NodeJS.ReadableStream | Buffer
+    data: NodeJS.ReadableStream | Buffer,
+    contextId?: string
   ): Promise<IExtentChunk> {
+    const pushStart = Date.now();
     const op = () =>
       new Promise<IExtentChunk>((resolve, reject) => {
         (async (): Promise<IExtentChunk> => {
+          this.dequeueCount++;
+          this.totalPendingTimeInMS += Date.now() - pushStart;
+          logger.debug(
+            `FSExtentStore:appendExtent() Start to execute appending extent operation, average pending time:${this
+              .totalPendingTimeInMS / this.dequeueCount}.`,
+            contextId
+          );
+
           let appendExtentIdx = 0;
 
           const idleList = [];
@@ -168,6 +189,16 @@ export default class FSExtentStore implements IExtentStore {
           this.appendExtentArray[appendExtentIdx].appendStatus =
             AppendStatusCode.Appending;
 
+          logger.debug(
+            `FSExtentStore:appendExtent() number of idle appending extent:${
+              idleList.length
+            }, location list:${JSON.stringify(
+              this.appendExtentArray
+            )}, selected location ID for write:${
+              this.appendExtentArray[appendExtentIdx].persistencyId
+            }.`,
+            contextId
+          );
           // console.log(
           //   `appendExtent() appendExtentIdx:${appendExtentIdx} offset:${
           //     this.appendExtentArray[appendExtentIdx].offset
@@ -198,15 +229,26 @@ export default class FSExtentStore implements IExtentStore {
           const appendExtent = this.appendExtentArray[appendExtentIdx];
           const id = appendExtent.id;
           const path = this.generateExtentPath(appendExtent.persistencyId, id);
-
+          logger.debug(
+            `FSExtentStore:appendExtent() Wirte file path:${path}, offset:${
+              appendExtent.offset
+            }`,
+            contextId
+          );
           let fd = this.fdCache.get(id);
           // console.log(`appendExtent()  extentId:${id}. Get fd:${fd}`);
           if (fd === undefined) {
             fd = await openAsync(path, "a");
             this.fdCache.insert(id, fd);
-            // console.log(`appendExtent()  extentId:${id}. Get new fd:${fd}`);
+            logger.debug(
+              `FSExtentStore:appendExtent() Cache miss, opened a new file, fd:${fd}`,
+              contextId
+            );
           }
-
+          logger.debug(
+            `FSExtentStore:appendExtent() Create WriteStream with fd:${fd}`,
+            contextId
+          );
           const ws = createWriteStream(path, {
             flags: "a",
             fd,
@@ -219,24 +261,42 @@ export default class FSExtentStore implements IExtentStore {
           // console.log(`appendExtent() start writing. extentId:${id}`);
 
           try {
-            count = await this.streamPipe(rs, ws);
+            logger.debug(
+              `FSExtentStore:appendExtent() Start to write to local file`,
+              contextId
+            );
+            const start = Date.now();
+            count = await this.streamPipe(rs, ws, contextId);
+            this.totalAppendTimeInMS += Date.now() - start;
+            this.appendCount++;
+            logger.debug(
+              `FSExtentStore:appendExtent() Complete writing to local file, count:${count},current average append time:${this
+                .totalAppendTimeInMS / this.appendCount} ms.`,
+              contextId
+            );
+
             const offset = appendExtent.offset;
             appendExtent.offset += count;
 
-            const extentId = id;
-            const extent: IExtentModel = {
-              id: extentId,
-              persistencyId: appendExtent.persistencyId,
-              path: extentId,
-              size: count + offset,
-              lastModifiedInMS: Date.now()
-            };
-            // console.log(
-            //   `appendExtent() write finish. extent:${JSON.stringify(extent)}`
-            // );
-            await this.metadataStore.updateExtent(extent);
+            // const extentId = id;
+            // const extent: IExtentModel = {
+            //   id: extentId,
+            //   persistencyId: appendExtent.persistencyId,
+            //   path: extentId,
+            //   size: count + offset,
+            //   lastModifiedInMS: Date.now()
+            // };
 
-            // console.log(`appendExtent() update extent done. Resolve()`);
+            logger.debug(
+              `FSExtentStore:appendExtent() Start to update Sql extent metadata`,
+              contextId
+            );
+            // await this.metadataStore.updateExtent(extent);
+            logger.debug(
+              `FSExtentStore:appendExtent() Complete updating Sql extent metadata`,
+              contextId
+            );
+
             appendExtent.appendStatus = AppendStatusCode.Idle;
             return {
               id,
@@ -244,6 +304,10 @@ export default class FSExtentStore implements IExtentStore {
               count
             };
           } catch (err) {
+            logger.error(
+              `FSExtentStore:appendExtent() Error:${err.message}`,
+              contextId
+            );
             this.getNewExtent(appendExtent);
             appendExtent.appendStatus = AppendStatusCode.Idle;
             throw err;
@@ -253,7 +317,11 @@ export default class FSExtentStore implements IExtentStore {
           .catch(reject);
       });
 
-    return this.appendQueue.operate(op);
+    logger.debug(
+      `FSExtentStore:appendExtent() Push the appending operation into the operation queue.`,
+      contextId
+    );
+    return this.appendQueue.operate(op, contextId);
   }
 
   /**
@@ -402,26 +470,57 @@ export default class FSExtentStore implements IExtentStore {
 
   private async streamPipe(
     rs: NodeJS.ReadableStream,
-    ws: Writable
+    ws: Writable,
+    contextId?: string
   ): Promise<number> {
     return new Promise<number>((resolve, reject) => {
       let count: number = 0;
       let wsEnd = false;
+      const threshold = 4 * 1024 * 1024;
+      let bufferArray: Buffer[] = [];
+      let bufferSize = 0;
 
       rs.on("data", data => {
         count += data.length;
-        if (!ws.write(data)) {
-          rs.pause();
+        bufferArray.push(data);
+        bufferSize += data.length;
+        logger.debug(
+          `FSExtentStore:streamPipe() Income data ${
+            data.length
+          } bytes, total count:${count} bytes, bufferSize:${bufferSize}.`,
+          contextId
+        );
+        if (bufferSize >= threshold) {
+          logger.debug(
+            `FSExtentStore:streamPipe() Flush buffer ${bufferSize} bytes.`,
+            contextId
+          );
+          //const writeBuffer = Buffer.concat(bufferArray);
+          // if (!ws.write(writeBuffer)) {
+          //   rs.pause();
+          // }
+          bufferArray = [];
+          bufferSize = 0;
         }
       })
         .on("end", () => {
           if (!wsEnd) {
+            logger.debug(
+              `FSExtentStore:streamPipe() End with flushing buffer ${bufferSize} bytes, total count:${count} bytes.`,
+              contextId
+            );
+            // ws.end(Buffer.concat(bufferArray));
             ws.end();
             wsEnd = true;
           }
         })
         .on("close", () => {
           if (!wsEnd) {
+            logger.debug(
+              `FSExtentStore:streamPipe() End with flushing buffer ${bufferSize} bytes, total count:${count} bytes.`,
+              contextId
+            );
+            // ws.end(Buffer.concat(bufferArray));
             ws.end();
             wsEnd = true;
           }
